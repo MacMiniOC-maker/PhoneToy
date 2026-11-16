@@ -18,52 +18,59 @@ Twilio call recording is never enabled (see [Privacy](#privacy)).
 
 ## Parts
 
-| Part | Notes |
+These are the parts on the shopping list.
+
+| Part | Role |
 |---|---|
-| ESP32-S3-DevKitC-1 **N16R8** | 16 MB flash, 8 MB octal PSRAM |
-| Retro handset | earpiece speaker reused; the INMP441 goes in the mouthpiece |
-| Hook switch | any microswitch the resting handset presses |
-| MAX98357A I2S amp × **2** | one for the earpiece, one for the ringer speaker (see note below) |
-| Small speaker, 4–8 Ω | ringer |
-| INMP441 I2S mic | |
-| LED arcade button × 4 | **5 V LED version** recommended |
-| NPN transistor × 4 (2N2222, BC337, …) + 1 kΩ resistor × 4 | LED drivers |
+| ESP32-S3-DevKitC-1 **N16R8** (2-pack) | brain; the second board is a spare |
+| Adafruit MAX98357A I2S amp (#3006) × 2 | one for the earpiece, one for the ringer |
+| 28 mm 8 Ω mini speaker | earpiece, glued inside the handset |
+| 3 W 4 Ω speaker | ringer |
+| INMP441 I2S mic | handset mouthpiece |
+| Old corded phone handset | shell only; its own electronics come out |
+| Lever microswitch | hook switch under the handset cradle |
+| Adafruit 30 mm LED arcade button × 4 | photo buttons |
+| 2N2222 NPN transistor × 4 + 1 kΩ resistor × 4 | LED drivers |
 
-**Two amps or one?** A MAX98357A drives one speaker. This design uses two amps
-on the same I2S wires and switches between them with their `SD` pins. If you
-only have one, wire it to the earpiece, set `PT_SINGLE_AMP 1` in
-`firmware/main/config.h`, and the ring tone plays (quietly) from the handset.
+## Button LEDs
 
-## Check the button LEDs first
-
-Arcade button LEDs come as 5 V or 12 V parts with the resistor built in, and
-either is more than a 3.3 V GPIO pin can drive, so every LED goes through a
-transistor.
-
-1. Look for a marking on the LED holder (`5V` / `12V`), or check the listing.
-2. Not sure? Touch the LED terminals to the DevKit's `5V` and `GND` pins
-   (try both polarities). Bright = 5 V part. Dim = 12 V part.
-3. A 12 V LED is too dim on USB power. Swap the LED holder for a 5 V one
-   (they pull out of the button), or replace its resistor with ~150 Ω.
+The Adafruit 30 mm buttons have an LED with a built-in resistor meant for 5 V,
+which is more than a 3.3 V GPIO pin should drive directly. So each LED runs
+from the `5V` pin through a 2N2222. Quick check before wiring all four: touch
+one LED's two tabs to `5V` and `GND` (swap them if it stays dark). It should
+be clearly bright. If it gets hot or is blindingly bright, that button has no
+built-in resistor: add 220 Ω in series.
 
 ## Wiring
 
 All pins are defined in [`firmware/main/config.h`](firmware/main/config.h).
 
-| Signal | ESP32-S3 pin | Connects to |
+| Part | Part pin | ESP32-S3 pin |
 |---|---|---|
-| I2S bit clock | GPIO 4 | `BCLK` on both amps, `SCK` on mic |
-| I2S word select | GPIO 5 | `LRC` on both amps, `WS` on mic |
-| I2S data out | GPIO 6 | `DIN` on both amps |
-| I2S data in | GPIO 7 | `SD` on mic |
-| Earpiece amp enable | GPIO 15 | `SD` on the earpiece MAX98357A |
-| Ringer amp enable | GPIO 16 | `SD` on the ringer MAX98357A |
-| Hook switch | GPIO 8 | switch → `GND` |
-| Button 1 / 2 / 3 / 4 | GPIO 9 / 10 / 11 / 12 | button switch → `GND` |
-| LED 1 / 2 / 3 / 4 | GPIO 13 / 14 / 17 / 18 | 1 kΩ → transistor base |
-| 5 V | `5V` pin | `VIN` on both amps, `+` of each button LED |
-| 3.3 V | `3V3` pin | `VDD` on mic |
-| Ground | `GND` | amps, mic (`GND` **and** `L/R`), transistor emitters, all switches |
+| Both amplifiers | `Vin` | `5V` |
+| Both amplifiers | `GND` | `GND` |
+| Both amplifiers | `BCLK` | GPIO 5 |
+| Both amplifiers | `LRC` | GPIO 6 |
+| Both amplifiers | `DIN` | GPIO 7 |
+| Earpiece amplifier | `SD` (on/off) | GPIO 17 |
+| Ringer amplifier | `SD` (on/off) | GPIO 18 |
+| Earpiece amplifier | `+` / `−` | 28 mm speaker |
+| Ringer amplifier | `+` / `−` | 3 W speaker |
+| Microphone | `VDD` | `3V3` (not 5V) |
+| Microphone | `GND` and `L/R` | `GND` |
+| Microphone | `SCK` | GPIO 5 (shared) |
+| Microphone | `WS` | GPIO 6 (shared) |
+| Microphone | `SD` (data) | GPIO 15 |
+| Button switches 1 to 4 | one tab each | GPIO 9, 10, 11, 12 |
+| Button switches 1 to 4 | other tab | `GND` |
+| Button lights 1 to 4 | plus tab | `5V` |
+| Button lights 1 to 4 | minus tab | transistor collector |
+| Transistors 1 to 4 (2N2222) | base, through 1 kΩ | GPIO 38, 39, 40, 41 |
+| Transistors 1 to 4 | emitter | `GND` |
+| Hook switch | common tab | `GND` |
+| Hook switch | normally-open tab | GPIO 16 |
+
+This is the same pin map as the "Suggested wiring" table in the build plan.
 
 Per button LED (low-side switch):
 
@@ -79,12 +86,15 @@ Other notes:
   connect either output wire to ground.
 - Leave the amps' `GAIN` pins unconnected.
 - Buttons and the hook switch use the ESP32's internal pull-ups; no resistors.
+- On some DevKitC boards the on-board RGB LED is also on GPIO 38, so it may
+  show a stray colour when button light 1 changes. That is harmless.
 - **Handset cord:** the mic needs 5 wires (3V3, GND, SCK, WS, SD) and the
-  earpiece 2, so 7 in total. A classic coiled handset cord has only 4. Use an
-  8-conductor cable (a flat Ethernet patch cable works) and keep it under ~1 m;
-  I2S clocks do not like long cables. If the mic is noisy or silent only when
-  it is on the long cable, add a 100 Ω resistor in series with GPIO 4 at the
-  ESP32 end.
+  earpiece 2, so 7 in total. The handset's own cord likely has too few. Use an
+  8-conductor cable (a flat Ethernet patch cable works) and keep it to about
+  12 inches. If the mic is noisy or silent only when it is on the long cable,
+  add a 100 Ω resistor in series with GPIO 5 at the ESP32 end.
+- For the bench test the mic and 28 mm speaker can sit on the breadboard; they
+  do not need to be in the handset yet.
 - **Volume:** `PT_EARPIECE_GAIN` starts low on purpose. Listen yourself before
   raising it; it sits against a child's ear.
 
@@ -92,8 +102,13 @@ Other notes:
 
 ### Build and flash
 
-Needs [ESP-IDF v5.3](https://docs.espressif.com/projects/esp-idf/en/v5.3.2/esp32s3/get-started/index.html).
 Plug into the DevKit's **UART** USB port.
+
+**PlatformIO (VS Code):** open the `firmware/` folder, then use *Upload and
+Monitor* from the PlatformIO toolbar. The first build downloads ESP-IDF and
+takes several minutes.
+
+**Or plain [ESP-IDF v5.3](https://docs.espressif.com/projects/esp-idf/en/v5.3.2/esp32s3/get-started/index.html):**
 
 ```sh
 cd firmware
@@ -121,10 +136,11 @@ Repeat the press test for each button to confirm button N lights LED N.
 |---|---|
 | Log says `LIFTED` while the handset is down | set `PT_HOOK_OFFHOOK_LEVEL 0` in `config.h` (or use the switch's other contact) |
 | LEDs on when they should be off | set `PT_LED_ACTIVE_HIGH 0`, or check the transistor's pin order |
-| `mic peak` stays at 0 | mic `L/R` must go to GND; check `SD` → GPIO 7 and 3V3 power |
+| `mic peak` stays at 0 | mic `L/R` must go to GND; check `SD` → GPIO 15 and 3V3 power; reflow the mic's header pins |
 | Mic too quiet / distorted | raise / lower `PT_MIC_SHIFT` |
 | Earpiece squeals | lower `PT_EARPIECE_GAIN`; pad the mic so it is not facing the earpiece inside the handset |
-| Ring comes out of the wrong speaker | swap the two `SD` wires (GPIO 15 / 16) |
+| Ring comes out of the wrong speaker | swap the two `SD` wires (GPIO 17 / 18) |
+| No sound from an amp | check the solder joints on its header pins first |
 
 The ring tone is synthesized by `firmware/tools/make_ring.py` and embedded in
 flash as `firmware/main/ring.pcm`.
