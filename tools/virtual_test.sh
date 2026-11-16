@@ -14,6 +14,8 @@ echo
 echo "== 3. Circuit simulations =="
 if command -v ngspice >/dev/null; then
   python3 sim/run.py > sim/RESULTS.md && echo "wrote sim/RESULTS.md"
+  python3 sim/safety.py > sim/SAFETY.md && echo "wrote sim/SAFETY.md"
+  if grep -q "OVER\*\*" sim/SAFETY.md; then echo "SAFETY: a part is over its rating, see sim/SAFETY.md"; exit 1; fi
 else
   echo "ngspice not installed: skipped (sim/RESULTS.md has the last results)"
 fi

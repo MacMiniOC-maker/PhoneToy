@@ -54,7 +54,7 @@ All pins are defined in [`firmware/main/config.h`](firmware/main/config.h).
 | Both amplifiers | `DIN` | GPIO 7 |
 | Earpiece amplifier | `SD` (on/off) | GPIO 17 |
 | Ringer amplifier | `SD` (on/off) | GPIO 18 |
-| Earpiece amplifier | `+` / `−` | 28 mm speaker |
+| Earpiece amplifier | `+` / `−` | 28 mm speaker, with 220 Ω in series on one wire |
 | Ringer amplifier | `+` / `−` | 3 W speaker |
 | Microphone | `VDD` | `3V3` (not 5V) |
 | Microphone | `GND` and `L/R` | `GND` |
@@ -65,7 +65,7 @@ All pins are defined in [`firmware/main/config.h`](firmware/main/config.h).
 | Button switches 1 to 4 | other tab | `GND` |
 | Button lights 1 to 4 | plus tab | `5V` |
 | Button lights 1 to 4 | minus tab | transistor collector |
-| Transistors 1 to 4 (2N2222) | base, through 1 kΩ | GPIO 38, 39, 40, 41 |
+| Transistors 1 to 4 (2N2222) | base, through 4.7 kΩ (1 kΩ also works) | GPIO 38, 39, 40, 41 |
 | Transistors 1 to 4 | emitter | `GND` |
 | Hook switch | common tab | `GND` |
 | Hook switch | normally-open tab | GPIO 16 |
@@ -76,7 +76,7 @@ Per button LED (low-side switch):
 
 ```
 5V ──► LED + ... LED − ──► collector
-GPIO ──[1 kΩ]──► base        (NPN: 2N2222 / BC337)
+GPIO ─[4.7 kΩ]─► base        (NPN: 2N2222 / BC337)
 GND ◄── emitter
 ```
 
@@ -97,8 +97,28 @@ Other notes:
   mic's voltage limits without them (see [`sim/`](sim/README.md)).
 - For the bench test the mic and 28 mm speaker can sit on the breadboard; they
   do not need to be in the handset yet.
-- **Volume:** `PT_EARPIECE_GAIN` starts low on purpose. Listen yourself before
-  raising it; it sits against a child's ear.
+- **Volume:** see [Safety](#safety). Listen yourself before he does.
+
+## Safety
+
+[`sim/SAFETY.md`](sim/SAFETY.md) compares every part's worst-case load with its rating
+and models the common wiring mistakes. Nothing in normal use runs near a limit or gets
+warm. Four things came out of it:
+
+1. **Earpiece volume: fit a 220 Ω resistor in series with the earpiece speaker.** It caps
+   the level in hardware, so no software mistake can make it loud. Until you fit one, the
+   firmware holds the earpiece very quiet and refuses to build with a higher setting.
+   After fitting it, set `PT_EARPIECE_SERIES_OHMS 220` and raise `PT_EARPIECE_GAIN`.
+2. **Ringer volume** now starts at roughly 75 dB at half a metre, and the firmware refuses
+   a setting above 128.
+3. **Use 4.7 kΩ base resistors instead of 1 kΩ.** The lights are just as bright, and if a
+   light wire ever shorts to 5 V the transistor survives instead of overheating.
+4. **Measure, do not trust the model.** Check both speakers with a phone sound-meter app
+   before he uses it. Aim for 75 dB or less at the earpiece.
+
+Also: only ever power it from a certified 5 V USB charger, and unplug USB before moving
+any wire. A short across the power rails can pull more current than the jumper wires are
+rated for.
 
 ## Virtual testing
 

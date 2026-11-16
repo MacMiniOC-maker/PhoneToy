@@ -12,7 +12,9 @@ sh tools/virtual_test.sh
 | Firmware logic | wrong ring / answer / hang-up behaviour, switch bounce counted twice, impossible states | `firmware/test/test_logic.c`, compiled and run on your computer |
 | Circuit simulation | LED driver currents, the clock signal on the handset cable | `sim/*.cir` with ngspice |
 
-Results of the last run are in [`RESULTS.md`](RESULTS.md).
+Results of the last run are in [`RESULTS.md`](RESULTS.md), and the safety audit is in
+[`SAFETY.md`](SAFETY.md): load against rating for every part, loudness estimates, and what
+happens with each common wiring mistake. The run fails if any part is over its rating.
 
 ## What the simulations say
 
