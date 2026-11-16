@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "main.c" "audio.c" "io.c"
+    SRCS "main.c" "audio.c" "io.c" "logic.c"
     INCLUDE_DIRS "."
     REQUIRES driver esp_timer
     EMBED_FILES "ring.pcm")

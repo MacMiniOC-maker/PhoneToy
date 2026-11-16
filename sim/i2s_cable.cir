@@ -1,0 +1,21 @@
+* I2S bit clock from the ESP32 down the handset cable to the INMP441 mic
+* 16 kHz sample rate x 64 bits per frame = 1.024 MHz clock
+.param LEN=0.3     ; cable length in metres (0.3 m is about 12 inches)
+.param RSER=0      ; series resistor at the ESP32 end
+.param Z0=100      ; loose wires / ribbon / unshielded pair, roughly
+.param TDM=5.5n    ; delay per metre
+
+VCLK  src  0  PULSE(0 3.3 10n 2n 2n 486n 976.5n)
+RDRV  src  pin 35              ; pin output resistance
+CAMPS pin  0   10p             ; two amplifier clock inputs on the breadboard
+RS    pin  near {RSER+0.001}
+T1    near 0 far 0 Z0={Z0} TD={LEN*TDM}
+CMIC  far  0   5p              ; mic clock input
+.tran 0.1n 3u
+.control
+run
+meas tran vmax MAX v(far) from=0.9u to=3u
+meas tran vmin MIN v(far) from=0.9u to=3u
+meas tran trise TRIG v(far) VAL=0.33 RISE=2 TARG v(far) VAL=2.97 RISE=2
+.endc
+.end

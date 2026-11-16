@@ -1,0 +1,13 @@
+* What NOT to do: the same LED driven straight from a 3.3 V GPIO pin
+.param RLED=330
+VG    gpio_i 0 3.3
+RG    gpio_i gpio 30
+DLED  gpio led LEDBLUE
+RL    led 0 {RLED}
+.model LEDBLUE D(IS=1.4e-22 N=2.5 RS=5)
+.op
+.control
+run
+print i(VG)
+.endc
+.end

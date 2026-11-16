@@ -91,12 +91,20 @@ Other notes:
 - **Handset cord:** the mic needs 5 wires (3V3, GND, SCK, WS, SD) and the
   earpiece 2, so 7 in total. The handset's own cord likely has too few. Use an
   8-conductor cable (a flat Ethernet patch cable works) and keep it to about
-  12 inches. If the mic is noisy or silent only when it is on the long cable,
-  add a 100 Ω resistor in series with GPIO 5 at the ESP32 end.
+  12 inches.
+- **Mic clock wires:** put a 100 Ω resistor in series with the mic's `SCK` and
+  `WS` wires, at the breadboard end. Simulation shows the clock overshooting the
+  mic's voltage limits without them (see [`sim/`](sim/README.md)).
 - For the bench test the mic and 28 mm speaker can sit on the breadboard; they
   do not need to be in the handset yet.
 - **Volume:** `PT_EARPIECE_GAIN` starts low on purpose. Listen yourself before
   raising it; it sits against a child's ear.
+
+## Virtual testing
+
+Before the parts arrive, `sh tools/virtual_test.sh` checks the pin map against the
+board's rules, runs the firmware's logic on your computer, and simulates the light
+driver and the handset cable. Details and results are in [`sim/`](sim/README.md).
 
 ## Milestone 1: hardware check
 

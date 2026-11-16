@@ -15,13 +15,9 @@
 #include "audio.h"
 #include "config.h"
 #include "io.h"
-
-#define TICK_MS 10
-#define RING_TIMEOUT_TICKS (30000 / TICK_MS)
+#include "logic.h"
 
 static const char *TAG = "phonetoy";
-
-typedef enum { ST_IDLE, ST_RINGING, ST_OFFHOOK } state_t;
 
 void app_main(void)
 {
@@ -36,17 +32,15 @@ void app_main(void)
     }
     for (int i = 0; i < PT_NUM_BUTTONS; i++) io_button_pressed(i);  // drop boot-time presses
 
-    state_t state = ST_IDLE;
-    int slot = -1;  // button that started the ring, -1 if none
-    int ticks_in_state = 0;
+    pt_logic_t logic;
+    pt_logic_init(&logic);
     bool offhook = io_offhook();
     ESP_LOGI(TAG, "ready. handset is %s", offhook ? "LIFTED (off-hook)" : "down (on-hook)");
 
     TickType_t wake = xTaskGetTickCount();
     for (;;) {
-        vTaskDelayUntil(&wake, pdMS_TO_TICKS(TICK_MS));
+        vTaskDelayUntil(&wake, pdMS_TO_TICKS(PT_TICK_MS));
         io_tick();
-        ticks_in_state++;
 
         int pressed = -1;
         for (int i = 0; i < PT_NUM_BUTTONS; i++) {
@@ -60,46 +54,31 @@ void app_main(void)
             ESP_LOGI(TAG, "handset %s", offhook ? "LIFTED (off-hook)" : "down (on-hook)");
         }
 
-        state_t next = state;
-        switch (state) {
-        case ST_IDLE:
-            if (offhook) next = ST_OFFHOOK;
-            else if (pressed >= 0) { slot = pressed; next = ST_RINGING; }
-            break;
-        case ST_RINGING:
-            if (offhook) next = ST_OFFHOOK;
-            else if (pressed >= 0 || ticks_in_state > RING_TIMEOUT_TICKS) next = ST_IDLE;
-            break;
-        case ST_OFFHOOK:
-            if (!offhook) next = ST_IDLE;
-            else if (ticks_in_state % (1000 / TICK_MS) == 0) {
+        if (!pt_logic_step(&logic, offhook, pressed)) {
+            if (logic.state == PT_OFFHOOK && logic.ticks_in_state % (1000 / PT_TICK_MS) == 0) {
                 // Speak into the mic: this should jump from a few hundred into the thousands.
                 ESP_LOGI(TAG, "mic peak %5d / 32767", audio_take_mic_peak());
             }
-            break;
+            continue;
         }
-        if (next == state) continue;
 
         io_led_all(LED_OFF);
-        switch (next) {
-        case ST_IDLE:
-            slot = -1;
+        switch (logic.state) {
+        case PT_IDLE:
             audio_set_mode(AUDIO_IDLE);
             ESP_LOGI(TAG, "idle");
             break;
-        case ST_RINGING:
-            io_led_set(slot, LED_FLASH);
+        case PT_RINGING:
+            io_led_set(logic.slot, LED_FLASH);
             audio_set_mode(AUDIO_RING);
-            ESP_LOGI(TAG, "ringing on button %d (lift handset to answer, any button to stop)", slot + 1);
+            ESP_LOGI(TAG, "ringing on button %d (lift handset to answer, any button to stop)", logic.slot + 1);
             break;
-        case ST_OFFHOOK:
-            if (slot >= 0) io_led_set(slot, LED_SOLID);
+        case PT_OFFHOOK:
+            if (logic.slot >= 0) io_led_set(logic.slot, LED_SOLID);
             else io_led_all(LED_SOLID);
             audio_set_mode(AUDIO_LOOPBACK);
             ESP_LOGI(TAG, "loopback: mic -> earpiece");
             break;
         }
-        state = next;
-        ticks_in_state = 0;
     }
 }

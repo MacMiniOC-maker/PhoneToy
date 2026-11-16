@@ -1,17 +1,17 @@
 #include "io.h"
 #include "config.h"
+#include "logic.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 
 #define N PT_NUM_BUTTONS
-#define DEBOUNCE_TICKS 4      // 40 ms of agreement before a change is accepted
 #define LED_DUTY_MAX 255
 #define FLASH_HALF_PERIOD_TICKS 20  // 200 ms on / 200 ms off
 
 static const int s_btn_gpio[N] = PT_BUTTON_GPIOS;
 static const int s_led_gpio[N] = PT_LED_GPIOS;
 
-typedef struct { int gpio; bool state; int count; } debounced_t;
+typedef struct { int gpio; pt_debounce_t db; } debounced_t;
 
 static debounced_t s_btn[N], s_hook;
 static bool s_pressed[N];
@@ -27,19 +27,13 @@ static void input_init(debounced_t *d, int gpio)
     };
     gpio_config(&c);
     d->gpio = gpio;
-    d->state = gpio_get_level(gpio);
-    d->count = 0;
+    pt_debounce_init(&d->db, gpio_get_level(gpio));
 }
 
 // Returns true when the debounced level changed.
 static bool input_tick(debounced_t *d)
 {
-    bool raw = gpio_get_level(d->gpio);
-    if (raw == d->state) { d->count = 0; return false; }
-    if (++d->count < DEBOUNCE_TICKS) return false;
-    d->state = raw;
-    d->count = 0;
-    return true;
+    return pt_debounce_step(&d->db, gpio_get_level(d->gpio));
 }
 
 static void led_write(int i, bool on)
@@ -79,7 +73,7 @@ void io_tick(void)
 {
     s_ticks++;
     for (int i = 0; i < N; i++) {
-        if (input_tick(&s_btn[i]) && !s_btn[i].state) s_pressed[i] = true;
+        if (input_tick(&s_btn[i]) && !s_btn[i].db.state) s_pressed[i] = true;
     }
     input_tick(&s_hook);
 
@@ -91,7 +85,7 @@ void io_tick(void)
     }
 }
 
-bool io_button_down(int i) { return !s_btn[i].state; }
+bool io_button_down(int i) { return !s_btn[i].db.state; }
 
 bool io_button_pressed(int i)
 {
@@ -100,7 +94,7 @@ bool io_button_pressed(int i)
     return p;
 }
 
-bool io_offhook(void) { return s_hook.state == (bool)PT_HOOK_OFFHOOK_LEVEL; }
+bool io_offhook(void) { return s_hook.db.state == (bool)PT_HOOK_OFFHOOK_LEVEL; }
 
 void io_led_set(int i, led_mode_t mode)
 {
