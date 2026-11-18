@@ -21,12 +21,16 @@ Q_PD_MAX_MW   = 625     # 2N2222 in a TO-92 plastic case, free air
 R_PD_MAX_MW   = 250     # quarter-watt resistors
 LED_MAX_MA    = 20      # * typical indicator LED
 RINGER_MAX_W  = 3.0     # from the shopping list
-EAR_MAX_W     = 0.5     # * 28 mm 8 ohm mini speaker, typical lower bound
+EAR_MAX_W     = 2.0     # 28 mm 8 ohm speaker, from the listing (2 W)
 AMP_VDD_MAX   = 5.5     # MAX98357A
 MIC_VDD_MAX   = 3.63    # INMP441
 CONTACT_MAX_A = 1.0     # * breadboard contacts and thin jumper wires
 USB_PORT_A    = 0.5
 CHARGER_A     = 2.0
+TO92_C_PER_W  = 200     # * how much a small plastic transistor heats up per watt, free air
+BOX_AIR_C     = 35      # * air inside the sealed box on a warm day
+Q_TJ_MAX_C    = 150     # 2N2222 maximum junction temperature
+PAPER_CHAR_C  = 200     # * cardboard starts to scorch around here; it ignites above about 230 C
 SENS_DB       = 85      # * small-speaker sensitivity, dB SPL at 1 W / 1 m (unknown for these parts)
 AMP_VRMS_MAX  = 3.54    # the most a 5 V bridge amplifier can put out (5 V peak sine)
 
@@ -114,15 +118,52 @@ print(f"| Button LED has no built-in resistor | {-b['i(v5)']*1e3:.0f} mA through
 for rb in ("1k", "2.2k", "4.7k"):
     f = run("fault_collector_short.cir", RB=rb)
     ic, p = -f["i(v5)"], -f["i(v5)"] * f["v(coll)"]
+    temp = BOX_AIR_C + p * TO92_C_PER_W
     n = run("led_driver.cir", RB=rb, RLED=150)
-    print(f"| Light wire shorts to 5 V, base resistor {rb.replace('k',' kΩ')} | {ic*1e3:.0f} mA, {p:.2f} W in the transistor "
-          f"(rating {Q_PD_MAX_MW/1e3:.3g} W) | {'**Transistor overheats**' if p*1e3 > Q_PD_MAX_MW else 'Transistor survives'} | "
+    verdict = ("**Transistor overheats, hot enough to scorch cardboard**" if temp > PAPER_CHAR_C else
+               "**Transistor overheats and fails**" if temp > Q_TJ_MAX_C else "Transistor gets hot but survives")
+    if rb == "4.7k": FAULT_TEMP_47K = temp
+    print(f"| Light wire shorts to 5 V, base resistor {rb.replace('k',' kΩ')} | {ic*1e3:.0f} mA, {p:.2f} W in the transistor, "
+          f"about {temp:.0f} °C (limit {Q_TJ_MAX_C} °C) | {verdict} | "
           f"Normal operation with this resistor: {-n['i(v5)']*1e3:.1f} mA, {n['v(coll)']*1e3:.0f} mV drop "
           f"({'still fully on' if n['v(coll)'] < 0.2 else 'NOT fully on'}) |")
 sw = run("fault_legs_swapped.cir")
 print(f"| Transistor in backwards | {-sw['i(v5)']*1e3:.1f} mA through the LED | Light is dim or dark; nothing is damaged | Check the leg diagram |")
 print(f"| Microphone VDD on 5 V instead of 3V3 | 5 V against a {MIC_VDD_MAX} V limit | **Microphone destroyed** | It is in the wiring table and the lesson |")
-print(f"| 5 V rail shorted to ground | up to {CHARGER_A:.0f} A or more from the charger, against {CONTACT_MAX_A:.0f} A contacts | "
-      f"**Wires and contacts heat up** until the charger cuts out | Unplug USB before moving any wire; use a certified charger |")
+# rail short: heat in a thin jumper wire and in one breadboard contact, with and without a fuse
+def short_heat(amps):
+    wire_w = amps ** 2 * 0.043          # 20 cm of 28 AWG jumper wire
+    contact_w = amps ** 2 * 0.05        # * one worn breadboard contact, about 50 milliohm
+    wire_c = BOX_AIR_C + wire_w / (15 * 5.7e-4)       # still air, 0.9 mm insulated wire
+    return wire_w, contact_w, wire_c
+for amps, label, fix in ((3.0, "no fuse (charger supplies about 3 A before it cuts out)", "**Add the fuse below**"),
+                         (1.0, "with a 0.5 A resettable fuse (trips near 1 A, then holds a trickle)", "Fuse trips within seconds and resets when unplugged")):
+    ww, cw, wc = short_heat(amps)
+    print(f"| 5 V rail shorted to ground, {label} | {amps:.0f} A: {ww*1e3:.0f} mW in a jumper wire (about {wc:.0f} °C), "
+          f"{cw*1e3:.0f} mW in one breadboard contact | "
+          f"{'**Contact can soften the breadboard plastic; wire gets hot**' if amps > CONTACT_MAX_A else 'Warm for a few seconds, then off'} | {fix} |")
 print("| A GPIO output shorted to ground | the pin limits itself to about 40 mA | Usually survives briefly | Unplug before rewiring |")
 print("| Speaker output wire touches ground | the amplifier has short-circuit protection | Amp shuts down, recovers | Never ground either speaker wire |")
+
+print("\n## 4. Protection to build in\n")
+print("These turn a wiring fault from a heat problem into a non-event. None of them is in the firmware; they are parts and construction.\n")
+print("| Protection | Why | Cost |")
+print("|---|---|---|")
+print("| 0.5 A resettable fuse (PTC polyfuse) between the board's 5V pin and the red rail | Limits a short across the rails to about 1 A for a few seconds instead of 3 A continuously | a few dollars for a pack |")
+print(f"| 4.7 kΩ base resistors | A shorted light wire heats the transistor to about {FAULT_TEMP_47K:.0f} °C instead of past its limit | in the resistor kit |")
+print("| 220 Ω in series with the earpiece (only if the handset is opened) | Hardware cap on earpiece volume | in the resistor kit |")
+print("| Solder the final circuit onto a board; do not seal a breadboard in the box | Shaking and dropping work breadboard wires loose, and loose wires are what cause shorts | protoboard, a few dollars |")
+print("| Certified 5 V USB charger, plugged in out of his reach | The charger is the only part connected to mains, and its own cut-out is the last line of defence | you may own one |")
+print("| Keep the electronics off bare cardboard (a plastic or wooden tray inside the box) | Cardboard is the only thing in the build that burns | scrap material |")
+
+print("\n## 5. Hazards no simulation covers\n")
+print("For a toddler these matter more than anything electrical. Check each by hand, every time the toy is rebuilt.\n")
+print("| Hazard | Rule |")
+print("|---|---|")
+print("| **Cords** (strangulation) | No cord he can reach is longer than about 30 cm (12 in) when pulled straight. That includes the handset's coiled cord: feed the spare length inside the box and clamp it. The USB power cord runs straight behind furniture. |")
+print("| **Small parts** (choking) | Nothing comes off when pulled hard: button caps, photos, speaker, handset parts. A 30 mm button fits in a toddler's mouth. |")
+print("| **Access to the inside** | The box is glued or screwed shut. He cannot open it or reach a wire through any gap. |")
+print("| **Loudness** | Measured with a sound-meter app at the earpiece and at the ringer, not estimated. 75 dB or less at the ear. |")
+print("| **Heat** | Nothing is warm to the touch after 30 minutes plugged in, and again after a long call. |")
+print("| **Batteries** | There are none, by design. Do not add any. |")
+print("| **Supervision** | This is a homemade device, not a certified toy. He uses it with an adult in the room, and it is unplugged when nobody is watching. |")

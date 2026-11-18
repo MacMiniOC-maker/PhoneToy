@@ -116,9 +116,36 @@ warm. Four things came out of it:
 4. **Measure, do not trust the model.** Check both speakers with a phone sound-meter app
    before he uses it. Aim for 75 dB or less at the earpiece.
 
-Also: only ever power it from a certified 5 V USB charger, and unplug USB before moving
-any wire. A short across the power rails can pull more current than the jumper wires are
-rated for.
+5. **Add a 0.5 A resettable fuse** between the board's `5V` pin and the red rail. A short
+   across the rails then draws about 1 A for a few seconds instead of 3 A continuously.
+6. **Solder the final circuit** onto a board and keep it off bare cardboard. Do not seal a
+   breadboard in the box: loose jumper wires are what cause shorts.
+
+Simulation does not make a homemade device safe for a toddler. The hazards that matter most
+are not electrical and are listed at the end of `sim/SAFETY.md`: cords he can reach must be
+no longer than about 30 cm (12 in) pulled straight, nothing may come off when pulled, the
+box must be shut so he cannot reach inside, and he uses it with an adult in the room.
+
+Only ever power it from a certified 5 V USB charger, and unplug USB before moving any wire.
+
+## Handset: whole or opened
+
+The handset bought for this build is a USB-C audio device. There are two ways to use it.
+
+| | Keep it whole (preferred) | Open it (fallback) |
+|---|---|---|
+| Connection | its own USB-C plug into the board's `USB` port | new 7-wire cable to the breadboard |
+| Earpiece and mic | the handset's own | 28 mm speaker and INMP441 fitted inside |
+| Also needed | one amplifier and the 3 W speaker, for the ringer | both amplifiers, 3 W speaker |
+| Status | **untested** | wired and simulated as documented above |
+
+Before choosing, flash the probe in [`firmware/usb_probe`](firmware/usb_probe) (`idf.py -p <PORT> flash monitor`
+from that folder, with the computer on the `UART` port) and plug the handset into the `USB`
+port. It prints `PASS` or `FAIL` with the reason. Do not open the handset, and do not return
+the mic or the 28 mm speakers, until it has passed.
+
+Either way, the handset's coiled cord is far longer than 30 cm when stretched. Feed the spare
+length inside the box and clamp it so only a short piece is outside.
 
 ## Virtual testing
 
